@@ -10,6 +10,9 @@ from functools import cache
 from pathlib import Path
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+LEARNING_LOG_PATH = (
+    Path(__file__).resolve().parent.parent / "learning_log" / "entries.jsonl"
+)
 MAX_RESULTS = 3
 
 
@@ -97,3 +100,11 @@ def make_quiz(lecture: int) -> str:
         },
         ensure_ascii=False,
     )
+
+
+def save_learning_log(content: str) -> str:
+    """承認された学習内容を保存する。利用者が学習内容の保存を依頼したときに使う。"""
+    LEARNING_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with LEARNING_LOG_PATH.open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"content": content}, ensure_ascii=False) + "\n")
+    return "学習内容を保存しました。"
