@@ -124,7 +124,7 @@ def open_index(path: Path):
         db.close()
 
 
-def search(query: str) -> list[dict]:
+def search(query: str, include_neighbors: bool = False) -> list[dict]:
     """質問を埋め込み、近いページを最大RAG_TOP_K件返す。"""
     if not isinstance(query, str) or not query.strip():
         raise ValueError("検索語が空です。")
@@ -135,7 +135,33 @@ def search(query: str) -> list[dict]:
                    vec_distance_cosine(embedding, ?) AS distance
             FROM chunks ORDER BY distance, page_id LIMIT ?
         """, (sqlite_vec.serialize_float32(vector), RAG_TOP_K))
-        return [dict(row) for row in rows]
+        matches = [dict(row) for row in rows]
+
+    if not include_neighbors:
+        return matches
+
+    # ベクトル検索で取得したページはすべて保持する
+    results = list(matches)
+    seen = {page["page_id"] for page in results}
+
+    # 同一資料内のページ番号から前後ページを取得する
+    pages_by_location = {
+        (page["document_id"], int(page["page"])): page
+        for page in load_pages()
+    }
+
+    for hit in matches:
+        for offset in (-1, 1):
+            key = (hit["document_id"], int(hit["page"]) + offset)
+            neighbor = pages_by_location.get(key)
+
+            if neighbor is None or neighbor["page_id"] in seen:
+                continue
+
+            results.append({**neighbor, "distance": None})
+            seen.add(neighbor["page_id"])
+
+    return results
 
 
 def search_graph(query: str) -> dict:
